@@ -44,6 +44,7 @@ type PoleVpnGateway struct {
 	tunio             *TunIO
 	conn              Conn
 	state             int
+	registed          bool
 	mutex             *sync.Mutex
 	routeServer       string
 	sharedKey         string
@@ -181,19 +182,24 @@ func (pc *PoleVpnGateway) handlerIPDataResponse(pkt PolePacket, conn Conn) {
 }
 
 func (pc *PoleVpnGateway) handlerConnCloseEvent(pkt PolePacket, conn Conn) {
-	elog.Info("client closed,start reconnect")
+	elog.Info("client closed")
 }
 
 func (pc *PoleVpnGateway) handlerRouteRegisterRespose(pkt PolePacket, conn Conn) {
 	elog.Info("received route register")
-	av := anyvalue.New()
 
-	av.Set("gateway", pc.gatewayIp)
-	av.Set("routes", pc.routeNetWorks)
+	if pc.registed == false {
+		av := anyvalue.New()
+		av.Set("device", pc.device.GetInterface().Name())
+		av.Set("gateway", pc.gatewayIp)
+		av.Set("routes", pc.routeNetWorks)
 
-	if pc.handler != nil {
-		pc.handler(CLIENT_EVENT_REGISTED, pc, av)
+		if pc.handler != nil {
+			pc.handler(CLIENT_EVENT_REGISTED, pc, av)
+		}
+		pc.registed = true
 	}
+
 }
 
 func (pc *PoleVpnGateway) SendRouteRegister() {
@@ -230,7 +236,16 @@ func (pc *PoleVpnGateway) HeartBeat() {
 		}
 		timeNow := time.Now()
 		if timeNow.Sub(pc.lasttimeHeartbeat) > time.Second*HEART_BEAT_INTERVAL*SOCKET_NO_HEARTBEAT_TIMES {
-			elog.Error("have not recevied heartbeat for", SOCKET_NO_HEARTBEAT_TIMES, "times,maybe network interuption")
+			elog.Error("have not recevied heartbeat for", SOCKET_NO_HEARTBEAT_TIMES, "times,close current connection,reconnect")
+			pc.conn.Close(false)
+			err := pc.conn.Connect(pc.routeServer, pc.sharedKey)
+			if err != nil {
+				elog.Error("connect route server fail")
+				return
+			}
+			pc.conn.StartProcess()
+			pc.SendRouteRegister()
+			pc.lasttimeHeartbeat = timeNow
 		}
 		pc.SendHeartBeat()
 	}

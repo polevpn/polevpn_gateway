@@ -1,7 +1,7 @@
 {
 "route_server":"13.250.127.49:443",
 "shared_key":"123456",
-"gateway_ip":"169.254.0.1",
+"gateway":"169.254.0.1",
 "local_network":"192.168.1.0/24",
-"route_networks":["172.31.0.0/16"]
+"route_networks":["169.254.0.0/16","172.31.0.0/16"]
 }

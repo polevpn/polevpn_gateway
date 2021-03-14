@@ -42,7 +42,6 @@ func signalHandler(pc *core.PoleVpnGateway) {
 	}()
 }
 
-var device *core.TunDevice
 var networkmgr core.NetworkManager
 
 func eventHandler(event int, client *core.PoleVpnGateway, av *anyvalue.AnyValue) {
@@ -51,7 +50,7 @@ func eventHandler(event int, client *core.PoleVpnGateway, av *anyvalue.AnyValue)
 
 	case core.CLIENT_EVENT_REGISTED:
 		{
-			err := networkmgr.SetNetwork(device.GetInterface().Name(), av.Get("gateway").AsStr(), av.Get("routes").AsArray())
+			err := networkmgr.SetNetwork(av.Get("device").AsStr(), av.Get("gateway").AsStr(), av.Get("routes").AsArray())
 			if err != nil {
 				elog.Error("set network fail,", err)
 				client.Stop()
@@ -78,7 +77,7 @@ func main() {
 	defer elog.Flush()
 
 	go func() {
-		for range time.NewTicker(time.Second * 15).C {
+		for range time.NewTicker(time.Second * 60).C {
 			m := runtime.MemStats{}
 			runtime.ReadMemStats(&m)
 			elog.Printf("mem=%v,go=%v", m.HeapAlloc, runtime.NumGoroutine())
@@ -100,7 +99,7 @@ func main() {
 		elog.Fatal("load config fail", err)
 	}
 
-	device = core.NewTunDevice()
+	device := core.NewTunDevice()
 	err = device.Create()
 
 	if err != nil {
@@ -113,7 +112,7 @@ func main() {
 
 	routeServer := Config.Get("route_server").AsStr("127.0.0.1:443")
 	sharedKey := Config.Get("shared_key").AsStr()
-	gatewayIp := Config.Get("gateway_ip").AsStr()
+	gatewayIp := Config.Get("gateway").AsStr()
 	localNetWork := Config.Get("local_network").AsStr()
 	routeNetWorks := Config.Get("route_networks").AsArray()
 
