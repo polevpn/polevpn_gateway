@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +35,7 @@ const (
 )
 
 const (
+	ERROR_LOGIN    = "login"
 	ERROR_REGISTED = "registed"
 	ERROR_NETWORK  = "network"
 	ERROR_UNKNOWN  = "unknown"
@@ -103,10 +105,22 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	pc.routeNetWorks = routeNetWorks
 	var err error
 
-	pc.conn = NewKCPConn()
+	if strings.HasPrefix(routeServer, "wss://") {
+		pc.conn = NewWebSocketConn()
+	} else if strings.HasPrefix(routeServer, "kcp://") {
+		routeServer = strings.Replace(routeServer, "kcp://", "", -1)
+		pc.conn = NewKCPConn()
+	} else {
+		return errors.New("route server url unknown")
+	}
 
 	err = pc.conn.Connect(routeServer, sharedKey)
 	if err != nil {
+		if err == ErrLoginVerify {
+			if pc.handler != nil {
+				pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "shardkey invalid").Set("type", ERROR_LOGIN))
+			}
+		}
 		if pc.handler != nil {
 			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "connet fail,"+err.Error()).Set("type", ERROR_NETWORK))
 		}
@@ -232,7 +246,7 @@ func (pc *PoleVpnGateway) HeartBeat() {
 			err := pc.conn.Connect(pc.routeServer, pc.sharedKey)
 			if err != nil {
 				elog.Error("connect route server fail")
-				return
+				continue
 			}
 			pc.conn.StartProcess()
 			pc.SendRouteRegister()
