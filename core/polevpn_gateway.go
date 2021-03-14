@@ -114,7 +114,6 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	}
 	pc.conn.SetHandler(CMD_ROUTE_REGISTER, pc.handlerRouteRegisterRespose)
 	pc.conn.SetHandler(CMD_S2C_IPDATA, pc.handlerIPDataResponse)
-	pc.conn.SetHandler(CMD_CLIENT_CLOSED, pc.handlerConnCloseEvent)
 	pc.conn.SetHandler(CMD_HEART_BEAT, pc.handlerHeartBeatRespose)
 
 	pc.conn.StartProcess()
@@ -129,10 +128,6 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	}
 	pc.wg.Add(1)
 	return nil
-}
-
-func (pc *PoleVpnGateway) CloseConnect(flag bool) {
-	pc.conn.Close(flag)
 }
 
 func (pc *PoleVpnGateway) WaitStop() {
@@ -150,9 +145,9 @@ func (pc *PoleVpnGateway) handleTunPacket(pkt []byte) {
 	version = version >> 4
 
 	if version != VERSION_IP_V4 {
+		elog.Info("not ipv4pkt")
 		return
 	}
-
 	pc.sendIPPacketToRemoteConn(pkt)
 
 }
@@ -179,10 +174,6 @@ func (pc *PoleVpnGateway) handlerHeartBeatRespose(pkt PolePacket, conn Conn) {
 
 func (pc *PoleVpnGateway) handlerIPDataResponse(pkt PolePacket, conn Conn) {
 	pc.tunio.Enqueue(pkt[POLE_PACKET_HEADER_LEN:])
-}
-
-func (pc *PoleVpnGateway) handlerConnCloseEvent(pkt PolePacket, conn Conn) {
-	elog.Info("client closed")
 }
 
 func (pc *PoleVpnGateway) handlerRouteRegisterRespose(pkt PolePacket, conn Conn) {
@@ -237,7 +228,7 @@ func (pc *PoleVpnGateway) HeartBeat() {
 		timeNow := time.Now()
 		if timeNow.Sub(pc.lasttimeHeartbeat) > time.Second*HEART_BEAT_INTERVAL*SOCKET_NO_HEARTBEAT_TIMES {
 			elog.Error("have not recevied heartbeat for", SOCKET_NO_HEARTBEAT_TIMES, "times,close current connection,reconnect")
-			pc.conn.Close(false)
+			pc.conn.Close()
 			err := pc.conn.Connect(pc.routeServer, pc.sharedKey)
 			if err != nil {
 				elog.Error("connect route server fail")
@@ -263,7 +254,7 @@ func (pc *PoleVpnGateway) Stop() {
 	}
 
 	if pc.conn != nil {
-		pc.conn.Close(false)
+		pc.conn.Close()
 	}
 
 	if pc.tunio != nil {

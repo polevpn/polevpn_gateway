@@ -28,6 +28,7 @@ type KCPConn struct {
 	closed  bool
 	handler map[uint16]func(PolePacket, Conn)
 	mutex   *sync.Mutex
+	wg      *sync.WaitGroup
 }
 
 func NewKCPConn() *KCPConn {
@@ -37,6 +38,7 @@ func NewKCPConn() *KCPConn {
 		wch:     nil,
 		handler: make(map[uint16]func(PolePacket, Conn)),
 		mutex:   &sync.Mutex{},
+		wg:      &sync.WaitGroup{},
 	}
 }
 
@@ -66,7 +68,7 @@ func (kc *KCPConn) Connect(routeServer string, sharedKey string) error {
 	return nil
 }
 
-func (kc *KCPConn) Close(flag bool) error {
+func (kc *KCPConn) Close() error {
 	kc.mutex.Lock()
 	defer kc.mutex.Unlock()
 
@@ -77,11 +79,7 @@ func (kc *KCPConn) Close(flag bool) error {
 			close(kc.wch)
 		}
 		err := kc.conn.Close()
-		if flag {
-			pkt := make([]byte, POLE_PACKET_HEADER_LEN)
-			PolePacket(pkt).SetCmd(CMD_CLIENT_CLOSED)
-			go kc.dispatch(pkt)
-		}
+		kc.wg.Wait()
 		return err
 	}
 	return nil
@@ -104,7 +102,8 @@ func (kc *KCPConn) SetHandler(cmd uint16, handler func(PolePacket, Conn)) {
 
 func (kc *KCPConn) read() {
 	defer func() {
-		kc.Close(true)
+		kc.wg.Done()
+		kc.Close()
 	}()
 
 	defer PanicHandler()
@@ -174,6 +173,9 @@ func (kc *KCPConn) dispatch(pkt []byte) {
 }
 
 func (kc *KCPConn) write() {
+	defer func() {
+		kc.wg.Done()
+	}()
 	defer PanicHandler()
 
 	for {
@@ -212,6 +214,7 @@ func (kc *KCPConn) Send(pkt []byte) {
 }
 
 func (kc *KCPConn) StartProcess() {
+	kc.wg.Add(2)
 	go kc.read()
 	go kc.write()
 }

@@ -9,7 +9,7 @@ var ErrNetwork = errors.New("network error")
 
 type Conn interface {
 	Connect(routeServer string, sharedKey string) error
-	Close(flag bool) error
+	Close() error
 	String() string
 	IsClosed() bool
 	SetHandler(cmd uint16, handler func(PolePacket, Conn))
