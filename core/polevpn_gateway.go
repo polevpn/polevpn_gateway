@@ -108,13 +108,13 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	if strings.HasPrefix(routeServer, "wss://") {
 		pc.conn = NewWebSocketConn()
 	} else if strings.HasPrefix(routeServer, "kcp://") {
-		routeServer = strings.Replace(routeServer, "kcp://", "", -1)
+		pc.routeServer = strings.Replace(routeServer, "kcp://", "", -1)
 		pc.conn = NewKCPConn()
 	} else {
 		return errors.New("route server url unknown")
 	}
 
-	err = pc.conn.Connect(routeServer, sharedKey)
+	err = pc.conn.Connect(pc.routeServer, pc.sharedKey)
 	if err != nil {
 		if err == ErrLoginVerify {
 			if pc.handler != nil {
