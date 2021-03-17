@@ -27,7 +27,6 @@ type KCPConn struct {
 	wch     chan []byte
 	closed  bool
 	handler map[uint16]func(PolePacket, Conn)
-	mutex   *sync.Mutex
 	wg      *sync.WaitGroup
 }
 
@@ -37,7 +36,6 @@ func NewKCPConn() *KCPConn {
 		closed:  true,
 		wch:     nil,
 		handler: make(map[uint16]func(PolePacket, Conn)),
-		mutex:   &sync.Mutex{},
 		wg:      &sync.WaitGroup{},
 	}
 }
@@ -59,9 +57,6 @@ func (kc *KCPConn) Connect(routeServer string, sharedKey string) error {
 	conn.SetReadBuffer(KCP_READ_BUFFER)
 	conn.SetReadBuffer(KCP_WRITE_BUFFER)
 
-	kc.mutex.Lock()
-	defer kc.mutex.Unlock()
-
 	kc.conn = conn
 	kc.wch = make(chan []byte, CH_KCP_WRITE_SIZE)
 	kc.closed = false
@@ -69,8 +64,6 @@ func (kc *KCPConn) Connect(routeServer string, sharedKey string) error {
 }
 
 func (kc *KCPConn) Close() error {
-	kc.mutex.Lock()
-	defer kc.mutex.Unlock()
 
 	if kc.closed == false {
 		kc.closed = true
@@ -90,9 +83,6 @@ func (kc *KCPConn) String() string {
 }
 
 func (kc *KCPConn) IsClosed() bool {
-	kc.mutex.Lock()
-	defer kc.mutex.Unlock()
-
 	return kc.closed
 }
 

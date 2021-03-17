@@ -27,7 +27,6 @@ type WebSocketConn struct {
 	wch     chan []byte
 	closed  bool
 	handler map[uint16]func(PolePacket, Conn)
-	mutex   *sync.Mutex
 	wg      *sync.WaitGroup
 }
 
@@ -37,7 +36,6 @@ func NewWebSocketConn() *WebSocketConn {
 		closed:  true,
 		wch:     nil,
 		handler: make(map[uint16]func(PolePacket, Conn)),
-		mutex:   &sync.Mutex{},
 		wg:      &sync.WaitGroup{},
 	}
 }
@@ -87,9 +85,6 @@ func (wsc *WebSocketConn) Connect(routeServer string, sharedKey string) error {
 		return ErrNetwork
 	}
 
-	wsc.mutex.Lock()
-	defer wsc.mutex.Unlock()
-
 	wsc.conn = conn
 	wsc.wch = make(chan []byte, CH_WEBSOCKET_WRITE_SIZE)
 	wsc.closed = false
@@ -97,8 +92,6 @@ func (wsc *WebSocketConn) Connect(routeServer string, sharedKey string) error {
 }
 
 func (wsc *WebSocketConn) Close() error {
-	wsc.mutex.Lock()
-	defer wsc.mutex.Unlock()
 
 	if wsc.closed == false {
 		wsc.closed = true
@@ -118,9 +111,6 @@ func (wsc *WebSocketConn) String() string {
 }
 
 func (wsc *WebSocketConn) IsClosed() bool {
-	wsc.mutex.Lock()
-	defer wsc.mutex.Unlock()
-
 	return wsc.closed
 }
 
@@ -209,7 +199,7 @@ func (wsc *WebSocketConn) Send(pkt []byte) {
 }
 
 func (wsc *WebSocketConn) StartProcess() {
-	wsc.wg.Add(2)
+	wsc.wg.Add(1)
 	go wsc.read()
 	go wsc.write()
 }

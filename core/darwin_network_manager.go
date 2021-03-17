@@ -59,7 +59,6 @@ func (nm *DarwinNetworkManager) SetNetwork(device string, gatewayIp string, rout
 	for _, route := range routes {
 		route := route.(string)
 		elog.Info("add route ", route, "via", gatewayIp)
-		nm.delRoute(route)
 		err = nm.addRoute(route, gatewayIp)
 		if err != nil {
 			return errors.New("add route fail," + err.Error())

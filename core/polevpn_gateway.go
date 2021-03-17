@@ -126,6 +126,9 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 		}
 		return err
 	}
+
+	pc.wg.Add(1)
+
 	pc.conn.SetHandler(CMD_ROUTE_REGISTER, pc.handlerRouteRegisterRespose)
 	pc.conn.SetHandler(CMD_S2C_IPDATA, pc.handlerIPDataResponse)
 	pc.conn.SetHandler(CMD_HEART_BEAT, pc.handlerHeartBeatRespose)
@@ -140,7 +143,6 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	if pc.handler != nil {
 		pc.handler(CLIENT_EVENT_STARTED, pc, nil)
 	}
-	pc.wg.Add(1)
 	return nil
 }
 
@@ -258,10 +260,8 @@ func (pc *PoleVpnGateway) HeartBeat() {
 }
 
 func (pc *PoleVpnGateway) Stop() {
-
 	pc.mutex.Lock()
 	defer pc.mutex.Unlock()
-
 	if pc.state == POLE_CLIENT_CLOSED {
 		elog.Error("client have been closed")
 		return
@@ -270,7 +270,6 @@ func (pc *PoleVpnGateway) Stop() {
 	if pc.conn != nil {
 		pc.conn.Close()
 	}
-
 	if pc.tunio != nil {
 		pc.tunio.Close()
 	}

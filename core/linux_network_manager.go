@@ -64,8 +64,7 @@ func (nm *LinuxNetworkManager) SetNetwork(device string, gatewayIp string, route
 
 	for _, route := range routes {
 		route := route.(string)
-		elog.Info("add route ", route, "via", gatewayIp)
-		nm.delRoute(route)
+		elog.Info("ip route add", route, "via", gatewayIp)
 		err = nm.addRoute(route, gatewayIp)
 		if err != nil {
 			return errors.New("add route fail," + err.Error())

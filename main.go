@@ -6,7 +6,6 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
 
 	"github.com/polevpn/anyvalue"
 	"github.com/polevpn/elog"
@@ -34,8 +33,6 @@ func signalHandler(pc *core.PoleVpnGateway) {
 				}
 				elog.Flush()
 				os.Exit(0)
-			case syscall.SIGUSR1:
-			case syscall.SIGUSR2:
 			default:
 			}
 		}
@@ -53,7 +50,7 @@ func eventHandler(event int, client *core.PoleVpnGateway, av *anyvalue.AnyValue)
 			err := networkmgr.SetNetwork(av.Get("device").AsStr(), av.Get("gateway").AsStr(), av.Get("routes").AsArray())
 			if err != nil {
 				elog.Error("set network fail,", err)
-				client.Stop()
+				go client.Stop()
 			}
 		}
 	case core.CLIENT_EVENT_STOPPED:
@@ -75,14 +72,6 @@ func main() {
 
 	flag.Parse()
 	defer elog.Flush()
-
-	go func() {
-		for range time.NewTicker(time.Second * 60).C {
-			m := runtime.MemStats{}
-			runtime.ReadMemStats(&m)
-			elog.Printf("mem=%v,go=%v", m.HeapAlloc, runtime.NumGoroutine())
-		}
-	}()
 
 	if runtime.GOOS == "darwin" {
 		networkmgr = core.NewDarwinNetworkManager()
