@@ -161,7 +161,6 @@ func (pc *PoleVpnGateway) handleTunPacket(pkt []byte) {
 	version = version >> 4
 
 	if version != VERSION_IP_V4 {
-		elog.Info("not ipv4pkt")
 		return
 	}
 	pc.sendIPPacketToRemoteConn(pkt)
