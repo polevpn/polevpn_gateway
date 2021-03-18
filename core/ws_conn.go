@@ -93,7 +93,7 @@ func (wsc *WebSocketConn) Connect(routeServer string, sharedKey string) error {
 
 func (wsc *WebSocketConn) Close() error {
 
-	if wsc.closed == false {
+	if !wsc.closed {
 		wsc.closed = true
 		if wsc.wch != nil {
 			wsc.wch <- nil
@@ -101,6 +101,9 @@ func (wsc *WebSocketConn) Close() error {
 		}
 		err := wsc.conn.Close()
 		wsc.wg.Wait()
+		pkt := make([]byte, POLE_PACKET_HEADER_LEN)
+		PolePacket(pkt).SetCmd(CMD_CLIENT_CLOSED)
+		go wsc.dispatch(pkt)
 		return err
 	}
 	return nil
@@ -129,7 +132,7 @@ func (wsc *WebSocketConn) read() {
 	for {
 		mtype, pkt, err := wsc.conn.ReadMessage()
 		if err != nil {
-			if err == io.EOF || strings.Index(err.Error(), "use of closed network connection") > -1 {
+			if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
 				elog.Info(wsc.String(), "conn closed")
 			} else {
 				elog.Error(wsc.String(), "conn read exception:", err)
@@ -160,6 +163,7 @@ func (wsc *WebSocketConn) dispatch(pkt []byte) {
 func (wsc *WebSocketConn) write() {
 	defer func() {
 		wsc.wg.Done()
+		wsc.Close()
 	}()
 	defer PanicHandler()
 
@@ -189,7 +193,7 @@ func (wsc *WebSocketConn) write() {
 }
 
 func (wsc *WebSocketConn) Send(pkt []byte) {
-	if wsc.IsClosed() == true {
+	if wsc.IsClosed() {
 		elog.Debug("websocket connection is closed,can't send pkt")
 		return
 	}
@@ -199,7 +203,7 @@ func (wsc *WebSocketConn) Send(pkt []byte) {
 }
 
 func (wsc *WebSocketConn) StartProcess() {
-	wsc.wg.Add(1)
+	wsc.wg.Add(2)
 	go wsc.read()
 	go wsc.write()
 }

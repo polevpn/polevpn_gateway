@@ -12,14 +12,13 @@ import (
 )
 
 const (
-	KCP_SHARED_KEY_LEN    = 16
-	CH_KCP_WRITE_SIZE     = 100
-	KCP_HANDSHAKE_TIMEOUT = 5
-	KCP_MTU               = 1350
-	KCP_RECV_WINDOW       = 2048
-	KCP_SEND_WINDOW       = 2048
-	KCP_READ_BUFFER       = 4194304
-	KCP_WRITE_BUFFER      = 4194304
+	KCP_SHARED_KEY_LEN = 16
+	CH_KCP_WRITE_SIZE  = 100
+	KCP_MTU            = 1350
+	KCP_RECV_WINDOW    = 2048
+	KCP_SEND_WINDOW    = 2048
+	KCP_READ_BUFFER    = 4194304
+	KCP_WRITE_BUFFER   = 4194304
 )
 
 type KCPConn struct {
@@ -68,7 +67,7 @@ func (kc *KCPConn) Connect(routeServer string, sharedKey string) error {
 
 func (kc *KCPConn) Close() error {
 
-	if kc.closed == false {
+	if !kc.closed {
 		kc.closed = true
 		if kc.wch != nil {
 			kc.wch <- nil
@@ -76,6 +75,11 @@ func (kc *KCPConn) Close() error {
 		}
 		err := kc.conn.Close()
 		kc.wg.Wait()
+
+		pkt := make([]byte, POLE_PACKET_HEADER_LEN)
+		PolePacket(pkt).SetCmd(CMD_CLIENT_CLOSED)
+		go kc.dispatch(pkt)
+
 		return err
 	}
 	return nil
@@ -109,7 +113,7 @@ func (kc *KCPConn) read() {
 		for {
 			n, err := kc.conn.Read(prefetch[preOffset:])
 			if err != nil {
-				if err == io.EOF || strings.Index(err.Error(), "use of closed network connection") > -1 {
+				if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
 					elog.Info(kc.String(), "conn closed")
 				} else {
 					elog.Error(kc.String(), "conn read exception:", err)
@@ -135,7 +139,7 @@ func (kc *KCPConn) read() {
 		for {
 			n, err := kc.conn.Read(pkt[offset:])
 			if err != nil {
-				if err == io.EOF || strings.Index(err.Error(), "use of closed network connection") > -1 {
+				if err == io.EOF || strings.Contains(err.Error(), "use of closed network connection") {
 					elog.Info(kc.String(), "conn closed")
 				} else {
 					elog.Error(kc.String(), "conn read exception:", err)
@@ -168,6 +172,7 @@ func (kc *KCPConn) dispatch(pkt []byte) {
 func (kc *KCPConn) write() {
 	defer func() {
 		kc.wg.Done()
+		kc.Close()
 	}()
 	defer PanicHandler()
 
@@ -197,8 +202,8 @@ func (kc *KCPConn) write() {
 }
 
 func (kc *KCPConn) Send(pkt []byte) {
-	if kc.IsClosed() == true {
-		elog.Debug("websocket connection is closed,can't send pkt")
+	if kc.IsClosed() {
+		elog.Debug("kcp connection is closed,can't send pkt")
 		return
 	}
 	if kc.wch != nil {

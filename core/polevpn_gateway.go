@@ -132,6 +132,7 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	pc.conn.SetHandler(CMD_ROUTE_REGISTER, pc.handlerRouteRegisterRespose)
 	pc.conn.SetHandler(CMD_S2C_IPDATA, pc.handlerIPDataResponse)
 	pc.conn.SetHandler(CMD_HEART_BEAT, pc.handlerHeartBeatRespose)
+	pc.conn.SetHandler(CMD_CLIENT_CLOSED, pc.handlerClientClose)
 
 	pc.conn.StartProcess()
 
@@ -187,14 +188,19 @@ func (pc *PoleVpnGateway) handlerHeartBeatRespose(pkt PolePacket, conn Conn) {
 	pc.lasttimeHeartbeat = time.Now()
 }
 
+func (pc *PoleVpnGateway) handlerClientClose(pkt PolePacket, conn Conn) {
+	elog.Debug("socket closed")
+	pc.state = POLE_CLIENT_RECONNETING
+}
+
 func (pc *PoleVpnGateway) handlerIPDataResponse(pkt PolePacket, conn Conn) {
 	pc.tunio.Enqueue(pkt[POLE_PACKET_HEADER_LEN:])
 }
 
 func (pc *PoleVpnGateway) handlerRouteRegisterRespose(pkt PolePacket, conn Conn) {
-	elog.Info("received route register")
+	elog.Info("received register route response")
 
-	if pc.registed == false {
+	if !pc.registed {
 		av := anyvalue.New()
 		av.Set("device", pc.device.GetInterface().Name())
 		av.Set("gateway", pc.gatewayIp)
@@ -210,6 +216,7 @@ func (pc *PoleVpnGateway) handlerRouteRegisterRespose(pkt PolePacket, conn Conn)
 
 func (pc *PoleVpnGateway) SendRouteRegister() {
 
+	elog.Info("send register route request")
 	body := anyvalue.New()
 	body.Set("gateway", pc.gatewayIp)
 	body.Set("network", pc.localNetWork)
@@ -225,6 +232,9 @@ func (pc *PoleVpnGateway) SendRouteRegister() {
 }
 
 func (pc *PoleVpnGateway) SendHeartBeat() {
+
+	elog.Debug("send heartbeat")
+
 	buf := make([]byte, POLE_PACKET_HEADER_LEN)
 	PolePacket(buf).SetCmd(CMD_HEART_BEAT)
 	PolePacket(buf).SetLen(POLE_PACKET_HEADER_LEN)
@@ -241,14 +251,15 @@ func (pc *PoleVpnGateway) HeartBeat() {
 			break
 		}
 		timeNow := time.Now()
-		if timeNow.Sub(pc.lasttimeHeartbeat) > time.Second*HEART_BEAT_INTERVAL*SOCKET_NO_HEARTBEAT_TIMES {
-			elog.Error("have not recevied heartbeat for", SOCKET_NO_HEARTBEAT_TIMES, "times,close current connection,reconnect")
+		if pc.state == POLE_CLIENT_RECONNETING || timeNow.Sub(pc.lasttimeHeartbeat) > time.Second*HEART_BEAT_INTERVAL*SOCKET_NO_HEARTBEAT_TIMES {
+			elog.Error("current connection seems like abnormal or closed,reconnect")
 			pc.conn.Close()
 			err := pc.conn.Connect(pc.routeServer, pc.sharedKey)
 			if err != nil {
 				elog.Error("connect route server fail", err)
 				continue
 			}
+			pc.state = POLE_CLIENT_RUNING
 			pc.conn.StartProcess()
 			pc.SendRouteRegister()
 			pc.lasttimeHeartbeat = timeNow
