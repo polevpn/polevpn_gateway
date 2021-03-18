@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 )
 
 const (
+	KCP_SHARED_KEY_LEN    = 16
 	CH_KCP_WRITE_SIZE     = 100
 	KCP_HANDSHAKE_TIMEOUT = 5
 	KCP_MTU               = 1350
@@ -19,8 +21,6 @@ const (
 	KCP_READ_BUFFER       = 4194304
 	KCP_WRITE_BUFFER      = 4194304
 )
-
-var KCP_KEY = []byte{0x17, 0xef, 0xad, 0x3b, 0x12, 0xed, 0xfa, 0xc9, 0xd7, 0x54, 0x14, 0x5b, 0x3a, 0x4f, 0xb5, 0xf6}
 
 type KCPConn struct {
 	conn    *kcp.UDPSession
@@ -42,7 +42,10 @@ func NewKCPConn() *KCPConn {
 
 func (kc *KCPConn) Connect(routeServer string, sharedKey string) error {
 
-	block, _ := kcp.NewAESBlockCrypt(KCP_KEY)
+	if len(sharedKey) != KCP_SHARED_KEY_LEN {
+		return errors.New("sharedkey len must be 16")
+	}
+	block, _ := kcp.NewAESBlockCrypt([]byte(sharedKey))
 	conn, err := kcp.DialWithOptions(routeServer, nil, block, 10, 3)
 
 	if err != nil {
