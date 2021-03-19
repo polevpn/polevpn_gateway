@@ -4,7 +4,6 @@ import (
 	"flag"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
 	"github.com/polevpn/anyvalue"
@@ -39,47 +38,10 @@ func signalHandler(pc *core.PoleVpnGateway) {
 	}()
 }
 
-var networkmgr core.NetworkManager
-
-func eventHandler(event int, client *core.PoleVpnGateway, av *anyvalue.AnyValue) {
-
-	switch event {
-
-	case core.CLIENT_EVENT_REGISTED:
-		{
-			err := networkmgr.SetNetwork(av.Get("device").AsStr(), av.Get("gateway").AsStr(), av.Get("routes").AsArray())
-			if err != nil {
-				elog.Error("set network fail,", err)
-				go client.Stop()
-			}
-		}
-	case core.CLIENT_EVENT_STOPPED:
-		{
-			elog.Info("client stoped")
-			networkmgr.RestoreNetwork()
-		}
-	case core.CLIENT_EVENT_STARTED:
-		elog.Info("client started")
-	case core.CLIENT_EVENT_ERROR:
-		elog.Info("client error", av.Get("error").AsStr())
-	default:
-		elog.Error("invalid evnet=", event)
-	}
-
-}
-
 func main() {
 
 	flag.Parse()
 	defer elog.Flush()
-
-	if runtime.GOOS == "darwin" {
-		networkmgr = core.NewDarwinNetworkManager()
-	} else if runtime.GOOS == "linux" {
-		networkmgr = core.NewLinuxNetworkManager()
-	} else {
-		elog.Fatal("os platform not support")
-	}
 
 	var err error
 
@@ -96,8 +58,6 @@ func main() {
 	}
 
 	client := core.NewPoleVpnGateway()
-	client.SetEventHandler(eventHandler)
-	client.AttachTunDevice(device)
 
 	routeServer := Config.Get("route_server").AsStr("127.0.0.1:443")
 	sharedKey := Config.Get("shared_key").AsStr()

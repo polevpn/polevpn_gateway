@@ -49,7 +49,7 @@ func (t *TunIO) AttachDevice(device *TunDevice) {
 
 func (t *TunIO) Close() error {
 
-	if t.closed == true {
+	if t.closed {
 		return nil
 	}
 	if t.wch != nil {
@@ -76,7 +76,7 @@ func (t *TunIO) StartProcess() {
 func (t *TunIO) read() {
 
 	defer func() {
-		if t.closed == false {
+		if !t.closed {
 			t.handler(nil) //notify close exception
 		}
 		t.Close()
@@ -105,7 +105,7 @@ func (t *TunIO) read() {
 
 func (t *TunIO) write() {
 	defer func() {
-		if t.closed == false {
+		if !t.closed {
 			t.handler(nil) //notify close exception
 		}
 		t.Close()

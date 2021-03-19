@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -24,14 +25,7 @@ const (
 	HEART_BEAT_INTERVAL       = 10
 	RECONNECT_TIMES           = 60
 	RECONNECT_INTERVAL        = 5
-	SOCKET_NO_HEARTBEAT_TIMES = 3
-)
-
-const (
-	CLIENT_EVENT_STARTED  = 1
-	CLIENT_EVENT_STOPPED  = 2
-	CLIENT_EVENT_ERROR    = 3
-	CLIENT_EVENT_REGISTED = 4
+	SOCKET_NO_HEARTBEAT_TIMES = 2
 )
 
 const (
@@ -47,7 +41,6 @@ type PoleVpnGateway struct {
 	conn              Conn
 	state             int
 	registed          bool
-	mutex             *sync.Mutex
 	routeServer       string
 	sharedKey         string
 	gatewayIp         string
@@ -55,8 +48,8 @@ type PoleVpnGateway struct {
 	routeNetWorks     []interface{}
 	lasttimeHeartbeat time.Time
 	wg                *sync.WaitGroup
-	device            *TunDevice
-	handler           func(int, *PoleVpnGateway, *anyvalue.AnyValue)
+	deviceName        string
+	networkmgr        NetworkManager
 }
 
 func NewPoleVpnGateway() *PoleVpnGateway {
@@ -64,39 +57,12 @@ func NewPoleVpnGateway() *PoleVpnGateway {
 	client := &PoleVpnGateway{
 		conn:  nil,
 		state: POLE_CLIENT_INIT,
-		mutex: &sync.Mutex{},
 		wg:    &sync.WaitGroup{},
 	}
 	return client
 }
 
-func (pc *PoleVpnGateway) AttachTunDevice(device *TunDevice) {
-	pc.device = device
-	if pc.tunio != nil {
-		pc.tunio.Close()
-	}
-
-	pc.tunio = NewTunIO(TUN_DEVICE_CH_WRITE_SIZE)
-	pc.tunio.SetPacketHandler(pc.handleTunPacket)
-	pc.tunio.AttachDevice(device)
-	pc.tunio.StartProcess()
-}
-
-func (pc *PoleVpnGateway) SetEventHandler(handler func(int, *PoleVpnGateway, *anyvalue.AnyValue)) {
-	pc.handler = handler
-}
-
 func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp string, localNetWork string, routeNetWorks []interface{}) error {
-
-	pc.mutex.Lock()
-	defer pc.mutex.Unlock()
-
-	if pc.state != POLE_CLIENT_INIT {
-		if pc.handler != nil {
-			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "client stoped or not init").Set("type", ERROR_UNKNOWN))
-		}
-		return errors.New("client stoped or not init")
-	}
 
 	pc.routeServer = routeServer
 	pc.sharedKey = sharedKey
@@ -104,6 +70,16 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	pc.localNetWork = localNetWork
 	pc.routeNetWorks = routeNetWorks
 	var err error
+
+	if runtime.GOOS == "darwin" {
+		pc.networkmgr = NewDarwinNetworkManager()
+	} else if runtime.GOOS == "linux" {
+		pc.networkmgr = NewLinuxNetworkManager()
+	} else {
+		return errors.New("os platform not support")
+	}
+
+	elog.Info("connect to ", routeServer)
 
 	if strings.HasPrefix(routeServer, "wss://") {
 		pc.conn = NewWebSocketConn()
@@ -116,18 +92,24 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 
 	err = pc.conn.Connect(pc.routeServer, pc.sharedKey)
 	if err != nil {
-		if err == ErrLoginVerify {
-			if pc.handler != nil {
-				pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "shardkey invalid").Set("type", ERROR_LOGIN))
-			}
-		}
-		if pc.handler != nil {
-			pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("error", "connet fail,"+err.Error()).Set("type", ERROR_NETWORK))
-		}
 		return err
 	}
 
-	pc.wg.Add(1)
+	elog.Info("connected")
+
+	device := NewTunDevice()
+
+	if err = device.Create(); err != nil {
+		return err
+	}
+
+	elog.Info("create device name:", device.ifce.Name())
+
+	pc.deviceName = device.ifce.Name()
+	pc.tunio = NewTunIO(TUN_DEVICE_CH_WRITE_SIZE)
+	pc.tunio.SetPacketHandler(pc.handleTunPacket)
+	pc.tunio.AttachDevice(device)
+	pc.tunio.StartProcess()
 
 	pc.conn.SetHandler(CMD_ROUTE_REGISTER, pc.handlerRouteRegisterRespose)
 	pc.conn.SetHandler(CMD_S2C_IPDATA, pc.handlerIPDataResponse)
@@ -135,15 +117,14 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	pc.conn.SetHandler(CMD_CLIENT_CLOSED, pc.handlerClientClose)
 
 	pc.conn.StartProcess()
+	go pc.HeartBeat()
 
 	pc.SendRouteRegister()
 
 	pc.lasttimeHeartbeat = time.Now()
-	go pc.HeartBeat()
+
 	pc.state = POLE_CLIENT_RUNING
-	if pc.handler != nil {
-		pc.handler(CLIENT_EVENT_STARTED, pc, nil)
-	}
+	pc.wg.Add(1)
 	return nil
 }
 
@@ -154,7 +135,7 @@ func (pc *PoleVpnGateway) WaitStop() {
 func (pc *PoleVpnGateway) handleTunPacket(pkt []byte) {
 
 	if pkt == nil {
-		pc.handler(CLIENT_EVENT_ERROR, pc, anyvalue.New().Set("type", ERROR_IO).Set("error", "tun device close exception"))
+		elog.Error("tun device close exception")
 		pc.Stop()
 		return
 	}
@@ -201,13 +182,12 @@ func (pc *PoleVpnGateway) handlerRouteRegisterRespose(pkt PolePacket, conn Conn)
 	elog.Info("received register route response")
 
 	if !pc.registed {
-		av := anyvalue.New()
-		av.Set("device", pc.device.GetInterface().Name())
-		av.Set("gateway", pc.gatewayIp)
-		av.Set("routes", pc.routeNetWorks)
 
-		if pc.handler != nil {
-			pc.handler(CLIENT_EVENT_REGISTED, pc, av)
+		err := pc.networkmgr.SetNetwork(pc.deviceName, pc.gatewayIp, pc.routeNetWorks)
+		if err != nil {
+			elog.Error("set network fail,", err)
+			go pc.Stop()
+			return
 		}
 		pc.registed = true
 	}
@@ -270,23 +250,27 @@ func (pc *PoleVpnGateway) HeartBeat() {
 }
 
 func (pc *PoleVpnGateway) Stop() {
-	pc.mutex.Lock()
-	defer pc.mutex.Unlock()
+
+	elog.Info("stopping")
+
 	if pc.state == POLE_CLIENT_CLOSED {
 		elog.Error("client have been closed")
 		return
 	}
-
+	elog.Info("remote connection stopping")
 	if pc.conn != nil {
 		pc.conn.Close()
 	}
+	elog.Info("remote connection stopped")
+
+	elog.Info("tun device stopping")
 	if pc.tunio != nil {
 		pc.tunio.Close()
 	}
+	elog.Info("tun device stopped")
 	pc.state = POLE_CLIENT_CLOSED
 
-	if pc.handler != nil {
-		pc.handler(CLIENT_EVENT_STOPPED, pc, nil)
-	}
 	pc.wg.Done()
+	elog.Info("stopped")
+
 }
