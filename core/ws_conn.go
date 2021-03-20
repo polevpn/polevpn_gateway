@@ -76,7 +76,7 @@ func (wsc *WebSocketConn) Connect(routeServer string, sharedKey string) error {
 	if err != nil {
 		if resp != nil {
 			if resp.StatusCode == http.StatusForbidden {
-				return ErrLoginVerify
+				return ErrKeyVerify
 			} else {
 				return ErrConnectUnknown
 			}
