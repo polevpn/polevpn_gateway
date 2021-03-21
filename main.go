@@ -13,12 +13,13 @@ import (
 
 var Config *anyvalue.AnyValue
 var configPath string
+var pc *core.PoleVpnGateway
 
 func init() {
 	flag.StringVar(&configPath, "config", "./config.json", "config file path")
 }
 
-func signalHandler(pc *core.PoleVpnGateway) {
+func signalHandler() {
 
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -43,6 +44,8 @@ func main() {
 	flag.Parse()
 	defer elog.Flush()
 
+	signalHandler()
+
 	var err error
 
 	Config, err = core.GetConfig(configPath)
@@ -62,8 +65,6 @@ func main() {
 	if err != nil {
 		elog.Fatal("start polevpn client fail", err)
 	}
-
-	signalHandler(client)
 
 	client.WaitStop()
 }
