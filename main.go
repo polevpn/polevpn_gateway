@@ -50,13 +50,6 @@ func main() {
 		elog.Fatal("load config fail", err)
 	}
 
-	device := core.NewTunDevice()
-	err = device.Create()
-
-	if err != nil {
-		elog.Fatal("create device fail", err)
-	}
-
 	client := core.NewPoleVpnGateway()
 
 	routeServer := Config.Get("route_server").AsStr("127.0.0.1:443")
