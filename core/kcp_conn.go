@@ -13,7 +13,7 @@ import (
 
 const (
 	KCP_SHARED_KEY_LEN = 16
-	CH_KCP_WRITE_SIZE  = 100
+	CH_KCP_WRITE_SIZE  = 20
 	KCP_MTU            = 1350
 	KCP_RECV_WINDOW    = 2048
 	KCP_SEND_WINDOW    = 2048
