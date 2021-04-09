@@ -1,5 +1,5 @@
 {
-"route_server":"kcp://127.0.0.1:443",
+"route_server":"kcp://161.117.82.143:443",
 "shared_key":"!@#dFXemc$%*%^0K",
 "gateway":"169.254.0.5",
 "local_network":"192.168.10.0/24",
