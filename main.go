@@ -58,10 +58,12 @@ func main() {
 	routeServer := Config.Get("route_server").AsStr("127.0.0.1:443")
 	sharedKey := Config.Get("shared_key").AsStr()
 	gatewayIp := Config.Get("gateway").AsStr()
-	localNetWork := Config.Get("local_network").AsStr()
+	localNetWork := Config.Get("local_networks").AsArray()
 	routeNetWorks := Config.Get("route_networks").AsArray()
 
-	err = client.Start(routeServer, sharedKey, gatewayIp, localNetWork, routeNetWorks)
+	acls := Config.Get("acls").AsArray()
+
+	err = client.Start(routeServer, sharedKey, gatewayIp, localNetWork, routeNetWorks, acls)
 	if err != nil {
 		elog.Fatal("start polevpn client fail", err)
 	}

@@ -2,11 +2,13 @@ package core
 
 import (
 	"errors"
+	"net"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/netstack/tcpip/header"
 	"github.com/polevpn/anyvalue"
 	"github.com/polevpn/elog"
 )
@@ -44,8 +46,9 @@ type PoleVpnGateway struct {
 	routeServer       string
 	sharedKey         string
 	gatewayIp         string
-	localNetWork      string
+	localNetWorks     []interface{}
 	routeNetWorks     []interface{}
+	acls              []interface{}
 	lasttimeHeartbeat time.Time
 	wg                *sync.WaitGroup
 	deviceName        string
@@ -62,13 +65,14 @@ func NewPoleVpnGateway() *PoleVpnGateway {
 	return client
 }
 
-func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp string, localNetWork string, routeNetWorks []interface{}) error {
+func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp string, localNetWorks []interface{}, routeNetWorks []interface{}, acls []interface{}) error {
 
 	pc.routeServer = routeServer
 	pc.sharedKey = sharedKey
 	pc.gatewayIp = gatewayIp
-	pc.localNetWork = localNetWork
+	pc.localNetWorks = localNetWorks
 	pc.routeNetWorks = routeNetWorks
+	pc.acls = acls
 	var err error
 
 	if runtime.GOOS == "darwin" {
@@ -174,7 +178,38 @@ func (pc *PoleVpnGateway) handlerClientClose(pkt PolePacket, conn Conn) {
 	pc.state = POLE_CLIENT_RECONNETING
 }
 
+func (pc *PoleVpnGateway) checkAcls(ip net.IP) bool {
+
+	find := false
+
+	for _, network := range pc.acls {
+		nets := network.(string)
+		_, subnet, err := net.ParseCIDR(nets)
+
+		if err != nil {
+			continue
+		}
+		find = subnet.Contains(ip)
+
+		if find {
+			return find
+		}
+	}
+	return find
+
+}
+
 func (pc *PoleVpnGateway) handlerIPDataResponse(pkt PolePacket, conn Conn) {
+
+	ipv4pkg := header.IPv4(pkt.Payload())
+
+	srcIp := ipv4pkg.SourceAddress().To4()
+
+	if !pc.checkAcls(net.IP(srcIp)) {
+		elog.Debug(srcIp, "reject access")
+		return
+	}
+
 	pc.tunio.Enqueue(pkt[POLE_PACKET_HEADER_LEN:])
 }
 
@@ -199,7 +234,7 @@ func (pc *PoleVpnGateway) SendRouteRegister() {
 	elog.Info("send register route request")
 	body := anyvalue.New()
 	body.Set("gateway", pc.gatewayIp)
-	body.Set("network", pc.localNetWork)
+	body.Set("network", pc.localNetWorks)
 
 	bodyData, _ := body.EncodeJson()
 

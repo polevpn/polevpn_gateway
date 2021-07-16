@@ -1,7 +1,8 @@
 {
 "route_server":"kcp://127.0.0.1:443",
-"shared_key":"!@#dFXemc$%*%^0K",
-"gateway":"169.254.0.5",
-"local_network":"192.168.10.0/24",
-"route_networks":["169.254.0.0/16","172.31.0.0/16","192.168.199.0/24","192.168.1.0/24"]
+"shared_key":"xxxxxx",
+"gateway":"169.254.0.2",
+"local_networks":["192.168.1.0/24"],
+"acls":["0.0.0.0/0"],
+"route_networks":["169.254.0.0/16"]
 }
