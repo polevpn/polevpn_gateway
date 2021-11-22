@@ -70,7 +70,6 @@ func (kc *KCPConn) Close() error {
 	if !kc.closed {
 		kc.closed = true
 		if kc.wch != nil {
-			kc.wch <- nil
 			close(kc.wch)
 		}
 		err := kc.conn.Close()
@@ -169,9 +168,23 @@ func (kc *KCPConn) dispatch(pkt []byte) {
 	}
 }
 
+func (kc *KCPConn) drainWriteCh() {
+	for {
+		select {
+		case _, ok := <-kc.wch:
+			if !ok {
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
 func (kc *KCPConn) write() {
 	defer func() {
 		kc.wg.Done()
+		kc.drainWriteCh()
 		kc.Close()
 	}()
 	defer PanicHandler()

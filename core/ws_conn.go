@@ -96,7 +96,6 @@ func (wsc *WebSocketConn) Close() error {
 	if !wsc.closed {
 		wsc.closed = true
 		if wsc.wch != nil {
-			wsc.wch <- nil
 			close(wsc.wch)
 		}
 		err := wsc.conn.Close()
@@ -149,6 +148,19 @@ func (wsc *WebSocketConn) read() {
 
 }
 
+func (wsc *WebSocketConn) drainWriteCh() {
+	for {
+		select {
+		case _, ok := <-wsc.wch:
+			if !ok {
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
 func (wsc *WebSocketConn) dispatch(pkt []byte) {
 	ppkt := PolePacket(pkt)
 
@@ -163,6 +175,7 @@ func (wsc *WebSocketConn) dispatch(pkt []byte) {
 func (wsc *WebSocketConn) write() {
 	defer func() {
 		wsc.wg.Done()
+		wsc.drainWriteCh()
 		wsc.Close()
 	}()
 	defer PanicHandler()
