@@ -271,7 +271,7 @@ func (pc *PoleVpnGateway) HeartBeat() {
 			pc.conn.Close()
 			err := pc.conn.Connect(pc.routeServer, pc.sharedKey)
 			if err != nil {
-				elog.Error("connect route server fail", err)
+				elog.Error("connect route server fail,", err)
 				continue
 			}
 			pc.state = POLE_CLIENT_RUNING
