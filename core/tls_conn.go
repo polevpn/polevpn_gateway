@@ -2,36 +2,30 @@ package core
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/binary"
 	"io"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/pion/dtls/v2"
 	"github.com/polevpn/elog"
-	"github.com/polevpn/kcp"
 )
 
 const (
-	CH_KCP_WRITE_SIZE = 20
-	KCP_MTU           = 1350
-	KCP_RECV_WINDOW   = 2048
-	KCP_SEND_WINDOW   = 2048
-	KCP_READ_BUFFER   = 4194304
-	KCP_WRITE_BUFFER  = 4194304
+	CH_TLS_WRITE_SIZE = 20
 )
 
-type KCPConn struct {
-	conn    *kcp.UDPSession
+type TLSConn struct {
+	conn    net.Conn
 	wch     chan []byte
 	closed  bool
 	handler map[uint16]func(PolePacket, Conn)
 	wg      *sync.WaitGroup
 }
 
-func NewKCPConn() *KCPConn {
-	return &KCPConn{
+func NewTLSConn() *TLSConn {
+	return &TLSConn{
 		conn:    nil,
 		closed:  true,
 		wch:     nil,
@@ -40,46 +34,33 @@ func NewKCPConn() *KCPConn {
 	}
 }
 
-func (kc *KCPConn) Connect(routeServer string) error {
+func (kc *TLSConn) Connect(routeServer string) error {
 
-	// Prepare the configuration of the DTLS connection
-	config := &dtls.Config{
+	config := &tls.Config{
 		InsecureSkipVerify: true,
 		ServerName:         "apple.com",
-		MTU:                1400,
 	}
-
-	udpAddr, err := net.ResolveUDPAddr("udp", routeServer)
-
-	if err != nil {
-		return err
+	dialer := &tls.Dialer{
+		Config: config,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 	defer cancel()
 
-	conn, err := kcp.DialWithContext(ctx, udpAddr, config)
+	conn, err := dialer.DialContext(ctx, "tcp", routeServer)
 
 	if err != nil {
 		return err
 	}
-	conn.SetMtu(KCP_MTU)
-	conn.SetACKNoDelay(true)
-	conn.SetStreamMode(true)
-	conn.SetWriteDelay(false)
-	conn.SetNoDelay(1, 10, 2, 1)
-	conn.SetWindowSize(KCP_SEND_WINDOW, KCP_RECV_WINDOW)
-	conn.SetReadBuffer(KCP_READ_BUFFER)
-	conn.SetReadBuffer(KCP_WRITE_BUFFER)
 
 	kc.conn = conn
-	kc.wch = make(chan []byte, CH_KCP_WRITE_SIZE)
+	kc.wch = make(chan []byte, CH_TLS_WRITE_SIZE)
 	kc.closed = false
 	return nil
 }
 
-func (kc *KCPConn) Close() error {
+func (kc *TLSConn) Close() error {
 
 	if !kc.closed {
 		kc.closed = true
@@ -98,19 +79,19 @@ func (kc *KCPConn) Close() error {
 	return nil
 }
 
-func (kc *KCPConn) String() string {
+func (kc *TLSConn) String() string {
 	return kc.conn.LocalAddr().String() + "->" + kc.conn.RemoteAddr().String()
 }
 
-func (kc *KCPConn) IsClosed() bool {
+func (kc *TLSConn) IsClosed() bool {
 	return kc.closed
 }
 
-func (kc *KCPConn) SetHandler(cmd uint16, handler func(PolePacket, Conn)) {
+func (kc *TLSConn) SetHandler(cmd uint16, handler func(PolePacket, Conn)) {
 	kc.handler[cmd] = handler
 }
 
-func (kc *KCPConn) read() {
+func (kc *TLSConn) read() {
 	defer func() {
 		kc.wg.Done()
 		kc.Close()
@@ -160,7 +141,7 @@ func (kc *KCPConn) read() {
 
 }
 
-func (kc *KCPConn) dispatch(pkt []byte) {
+func (kc *TLSConn) dispatch(pkt []byte) {
 	ppkt := PolePacket(pkt)
 
 	handler, ok := kc.handler[ppkt.Cmd()]
@@ -171,7 +152,7 @@ func (kc *KCPConn) dispatch(pkt []byte) {
 	}
 }
 
-func (kc *KCPConn) drainWriteCh() {
+func (kc *TLSConn) drainWriteCh() {
 	for {
 		select {
 		case _, ok := <-kc.wch:
@@ -184,7 +165,7 @@ func (kc *KCPConn) drainWriteCh() {
 	}
 }
 
-func (kc *KCPConn) write() {
+func (kc *TLSConn) write() {
 	defer func() {
 		kc.wg.Done()
 		kc.drainWriteCh()
@@ -217,7 +198,7 @@ func (kc *KCPConn) write() {
 	}
 }
 
-func (kc *KCPConn) Send(pkt []byte) {
+func (kc *TLSConn) Send(pkt []byte) {
 	if kc.IsClosed() {
 		elog.Debug("kcp connection is closed,can't send pkt")
 		return
@@ -227,7 +208,7 @@ func (kc *KCPConn) Send(pkt []byte) {
 	}
 }
 
-func (kc *KCPConn) StartProcess() {
+func (kc *TLSConn) StartProcess() {
 	kc.wg.Add(2)
 	go kc.read()
 	go kc.write()

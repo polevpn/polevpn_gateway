@@ -85,16 +85,17 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 
 	elog.Info("connect to ", routeServer)
 
-	if strings.HasPrefix(routeServer, "wss://") {
-		pc.conn = NewWebSocketConn()
+	if strings.HasPrefix(routeServer, "tls://") {
+		pc.routeServer = strings.Replace(routeServer, "tls://", "", -1)
+		pc.conn = NewTLSConn()
 	} else if strings.HasPrefix(routeServer, "kcp://") {
 		pc.routeServer = strings.Replace(routeServer, "kcp://", "", -1)
 		pc.conn = NewKCPConn()
 	} else {
-		return errors.New("route server url unknown")
+		return errors.New("route server scheme unknown")
 	}
 
-	err = pc.conn.Connect(pc.routeServer, pc.sharedKey)
+	err = pc.conn.Connect(pc.routeServer)
 	if err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	pc.tunio.AttachDevice(device)
 	pc.tunio.StartProcess()
 
-	pc.conn.SetHandler(CMD_ROUTE_REGISTER, pc.handlerRouteRegisterRespose)
+	pc.conn.SetHandler(CMD_AUTH_REGISTER, pc.handlerRouteRegisterRespose)
 	pc.conn.SetHandler(CMD_S2C_IPDATA, pc.handlerIPDataResponse)
 	pc.conn.SetHandler(CMD_HEART_BEAT, pc.handlerHeartBeatRespose)
 	pc.conn.SetHandler(CMD_CLIENT_CLOSED, pc.handlerClientClose)
@@ -216,6 +217,20 @@ func (pc *PoleVpnGateway) handlerIPDataResponse(pkt PolePacket, conn Conn) {
 func (pc *PoleVpnGateway) handlerRouteRegisterRespose(pkt PolePacket, conn Conn) {
 	elog.Info("received register route response")
 
+	resp, err := anyvalue.NewFromJson(pkt.Payload())
+
+	if err != nil {
+		elog.Error("decode json fail,", err)
+		go pc.Stop()
+		return
+	}
+
+	if resp.Get("error").AsStr() != "" {
+		elog.Error("register fail,", resp.Get("error").AsStr())
+		go pc.Stop()
+		return
+	}
+
 	if !pc.registed {
 
 		err := pc.networkmgr.SetNetwork(pc.deviceName, pc.gatewayIp, pc.routeNetWorks)
@@ -233,6 +248,7 @@ func (pc *PoleVpnGateway) SendRouteRegister() {
 
 	elog.Info("send register route request")
 	body := anyvalue.New()
+	body.Set("key", pc.sharedKey)
 	body.Set("gateway", pc.gatewayIp)
 	body.Set("network", pc.localNetWorks)
 
@@ -240,7 +256,7 @@ func (pc *PoleVpnGateway) SendRouteRegister() {
 
 	buf := make([]byte, POLE_PACKET_HEADER_LEN+len(bodyData))
 	copy(buf[POLE_PACKET_HEADER_LEN:], bodyData)
-	PolePacket(buf).SetCmd(CMD_ROUTE_REGISTER)
+	PolePacket(buf).SetCmd(CMD_AUTH_REGISTER)
 	PolePacket(buf).SetLen(uint16(len(buf)))
 
 	pc.conn.Send(buf)
@@ -269,7 +285,7 @@ func (pc *PoleVpnGateway) HeartBeat() {
 		if pc.state == POLE_CLIENT_RECONNETING || timeNow.Sub(pc.lasttimeHeartbeat) > time.Second*HEART_BEAT_INTERVAL*SOCKET_NO_HEARTBEAT_TIMES {
 			elog.Error("current connection seems like abnormal or closed,reconnect")
 			pc.conn.Close()
-			err := pc.conn.Connect(pc.routeServer, pc.sharedKey)
+			err := pc.conn.Connect(pc.routeServer)
 			if err != nil {
 				elog.Error("connect route server fail", err)
 				continue

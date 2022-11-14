@@ -1,6 +1,6 @@
 {
 "route_server":"kcp://127.0.0.1:443",
-"shared_key":"",
+"key":"123456",
 "gateway":"169.254.0.2",
 "local_networks":["192.168.1.0/24"],
 "acls":["0.0.0.0/0"],
