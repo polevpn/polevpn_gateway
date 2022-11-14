@@ -16,7 +16,7 @@ func NewDarwinNetworkManager() *DarwinNetworkManager {
 
 func (nm *DarwinNetworkManager) setIPAddressAndEnable(tundev string, gatewayIp string) error {
 
-	out, err := exec.Command("bash", "-c", "ifconfig "+tundev+" "+gatewayIp+" "+gatewayIp+" up").Output()
+	out, err := exec.Command("bash", "-c", "ifconfig "+tundev+" "+gatewayIp+" "+gatewayIp+" up").CombinedOutput()
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -26,7 +26,7 @@ func (nm *DarwinNetworkManager) setIPAddressAndEnable(tundev string, gatewayIp s
 
 func (nm *DarwinNetworkManager) addRoute(cidr string, gw string) error {
 
-	out, err := exec.Command("bash", "-c", "route -n add -net "+cidr+" "+gw).Output()
+	out, err := exec.Command("bash", "-c", "route -n add -net "+cidr+" "+gw).CombinedOutput()
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -37,7 +37,7 @@ func (nm *DarwinNetworkManager) addRoute(cidr string, gw string) error {
 
 func (nm *DarwinNetworkManager) delRoute(cidr string) error {
 
-	out, err := exec.Command("bash", "-c", "route -n delete -net "+cidr).Output()
+	out, err := exec.Command("bash", "-c", "route -n delete -net "+cidr).CombinedOutput()
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -58,7 +58,7 @@ func (nm *DarwinNetworkManager) SetNetwork(device string, gatewayIp string, rout
 
 	for _, route := range routes {
 		route := route.(string)
-		elog.Info("add route ", route, "via", gatewayIp)
+		elog.Info("add route ", route, " via ", gatewayIp)
 		err = nm.addRoute(route, gatewayIp)
 		if err != nil {
 			return errors.New("add route fail," + err.Error())

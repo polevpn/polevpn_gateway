@@ -19,13 +19,13 @@ func (nm *LinuxNetworkManager) setIPAddressAndEnable(tundev string, gatewayIp st
 	var out []byte
 	var err error
 
-	out, err = exec.Command("bash", "-c", "ip addr add dev "+tundev+" local "+gatewayIp+" peer "+gatewayIp).Output()
+	out, err = exec.Command("bash", "-c", "ip addr add dev "+tundev+" local "+gatewayIp+" peer "+gatewayIp).CombinedOutput()
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
 
-	out, err = exec.Command("bash", "-c", "ip link set "+tundev+" up").Output()
+	out, err = exec.Command("bash", "-c", "ip link set "+tundev+" up").CombinedOutput()
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -34,7 +34,7 @@ func (nm *LinuxNetworkManager) setIPAddressAndEnable(tundev string, gatewayIp st
 }
 
 func (nm *LinuxNetworkManager) addRoute(cidr string, gw string) error {
-	out, err := exec.Command("bash", "-c", "ip route add "+cidr+" via "+gw).Output()
+	out, err := exec.Command("bash", "-c", "ip route add "+cidr+" via "+gw).CombinedOutput()
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
 	}
@@ -43,7 +43,7 @@ func (nm *LinuxNetworkManager) addRoute(cidr string, gw string) error {
 
 func (nm *LinuxNetworkManager) delRoute(cidr string) error {
 
-	out, err := exec.Command("bash", "-c", "ip route del "+cidr).Output()
+	out, err := exec.Command("bash", "-c", "ip route del "+cidr).CombinedOutput()
 
 	if err != nil {
 		return errors.New(err.Error() + "," + string(out))
@@ -64,7 +64,7 @@ func (nm *LinuxNetworkManager) SetNetwork(device string, gatewayIp string, route
 
 	for _, route := range routes {
 		route := route.(string)
-		elog.Info("ip route add", route, "via", gatewayIp)
+		elog.Info("ip route add ", route, " via ", gatewayIp)
 		err = nm.addRoute(route, gatewayIp)
 		if err != nil {
 			return errors.New("add route fail," + err.Error())

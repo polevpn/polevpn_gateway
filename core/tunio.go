@@ -91,7 +91,7 @@ func (t *TunIO) read() {
 			if err == io.EOF || strings.Index(err.Error(), "file already closed") > -1 {
 				elog.Info("tun device closed")
 			} else {
-				elog.Error("read pkg from tun fail", err)
+				elog.Error("read pkg from tun fail,", err)
 			}
 			return
 		}
@@ -127,7 +127,7 @@ func (t *TunIO) write() {
 					if err == io.EOF || strings.Index(err.Error(), "file already closed") > -1 {
 						elog.Info("tun device closed")
 					} else {
-						elog.Error("tun write error", err)
+						elog.Error("tun write error,", err)
 					}
 					return
 				}
