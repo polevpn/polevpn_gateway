@@ -174,26 +174,19 @@ func (kc *TLSConn) write() {
 	defer PanicHandler()
 
 	for {
-		select {
-		case pkt, ok := <-kc.wch:
-			if !ok {
-				elog.Error("get pkt from write channel fail,maybe channel closed")
-				return
-			} else {
-				if pkt == nil {
-					elog.Info("exit write process")
-					return
-				}
-				_, err := kc.conn.Write(pkt)
-				if err != nil {
-					if err == io.EOF || err == io.ErrUnexpectedEOF {
-						elog.Info(kc.String(), "conn closed")
-					} else {
-						elog.Error(kc.String(), "conn write exception:", err)
-					}
-					return
-				}
-			}
+		pkt, ok := <-kc.wch
+		if !ok {
+			elog.Error(kc.String(), ",channel closed")
+			return
+		}
+		if pkt == nil {
+			elog.Info(kc.String(), ",exit write process")
+			return
+		}
+		_, err := kc.conn.Write(pkt)
+		if err != nil {
+			elog.Error(kc.String(), ",conn write packet end status=", err)
+			return
 		}
 	}
 }
