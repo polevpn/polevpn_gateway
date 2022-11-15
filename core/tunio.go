@@ -1,8 +1,6 @@
 package core
 
 import (
-	"io"
-	"strings"
 	"sync"
 
 	"github.com/polevpn/elog"
@@ -88,11 +86,7 @@ func (t *TunIO) read() {
 		pkt := make([]byte, t.mtu)
 		n, err := t.device.GetInterface().Read(pkt)
 		if err != nil {
-			if err == io.EOF || strings.Index(err.Error(), "file already closed") > -1 {
-				elog.Info("tun device closed")
-			} else {
-				elog.Error("read pkg from tun fail,", err)
-			}
+			elog.Error("tun read end status=", err)
 			return
 		}
 		pkt = pkt[:n]
@@ -112,26 +106,20 @@ func (t *TunIO) write() {
 	}()
 	defer PanicHandler()
 	for {
-		select {
-		case pkt, ok := <-t.wch:
-			if !ok {
-				elog.Error("get pkt from write channel fail,maybe channel closed")
-				return
-			} else {
-				if pkt == nil {
-					elog.Info("exit write process")
-					return
-				}
-				_, err := t.device.GetInterface().Write(pkt)
-				if err != nil {
-					if err == io.EOF || strings.Index(err.Error(), "file already closed") > -1 {
-						elog.Info("tun device closed")
-					} else {
-						elog.Error("tun write error,", err)
-					}
-					return
-				}
-			}
+
+		pkt, ok := <-t.wch
+		if !ok {
+			elog.Error("channel closed")
+			return
+		}
+		if pkt == nil {
+			elog.Info("exit write process")
+			return
+		}
+		_, err := t.device.GetInterface().Write(pkt)
+		if err != nil {
+			elog.Error("tun write end status=", err)
+			return
 		}
 	}
 }
