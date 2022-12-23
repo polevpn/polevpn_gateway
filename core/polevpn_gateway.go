@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/netstack/tcpip/header"
 	"github.com/polevpn/anyvalue"
 	"github.com/polevpn/elog"
+	"github.com/polevpn/netstack/tcpip/header"
 )
 
 const (
