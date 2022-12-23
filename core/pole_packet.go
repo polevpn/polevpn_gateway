@@ -3,7 +3,8 @@ package core
 import "encoding/binary"
 
 const (
-	CMD_AUTH_REGISTER = 0x1
+	CMD_AUTH          = 0x0
+	CMD_REGISTER      = 0x1
 	CMD_S2C_IPDATA    = 0x2
 	CMD_C2S_IPDATA    = 0x3
 	CMD_HEART_BEAT    = 0x4

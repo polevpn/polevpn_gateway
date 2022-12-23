@@ -8,7 +8,7 @@ var ErrConnectUnknown = errors.New("server unknown error")
 var ErrNetwork = errors.New("network error")
 
 type Conn interface {
-	Connect(routeServer string) error
+	Connect(routeServer string, sharedKey string) error
 	Close() error
 	String() string
 	IsClosed() bool

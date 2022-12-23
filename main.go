@@ -65,7 +65,7 @@ func main() {
 
 	err = client.Start(routeServer, sharedKey, gatewayIp, localNetWork, routeNetWorks, acls)
 	if err != nil {
-		elog.Fatal("start polevpn client fail", err)
+		elog.Fatal("start polevpn client fail,", err)
 	}
 
 	client.WaitStop()

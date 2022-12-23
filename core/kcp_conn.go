@@ -2,11 +2,13 @@ package core
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/pion/dtls/v2"
+	"github.com/polevpn/anyvalue"
 	"github.com/polevpn/elog"
 	"github.com/polevpn/kcp"
 )
@@ -21,11 +23,12 @@ const (
 )
 
 type KCPConn struct {
-	conn    *kcp.UDPSession
-	wch     chan []byte
-	closed  bool
-	handler map[uint16]func(PolePacket, Conn)
-	wg      *sync.WaitGroup
+	conn      *kcp.UDPSession
+	sharedKey string
+	wch       chan []byte
+	closed    bool
+	handler   map[uint16]func(PolePacket, Conn)
+	wg        *sync.WaitGroup
 }
 
 func NewKCPConn() *KCPConn {
@@ -38,7 +41,7 @@ func NewKCPConn() *KCPConn {
 	}
 }
 
-func (kc *KCPConn) Connect(routeServer string) error {
+func (kc *KCPConn) Connect(routeServer string, sharedKey string) error {
 
 	// Prepare the configuration of the DTLS connection
 	config := &dtls.Config{
@@ -71,10 +74,62 @@ func (kc *KCPConn) Connect(routeServer string) error {
 	conn.SetReadBuffer(KCP_READ_BUFFER)
 	conn.SetReadBuffer(KCP_WRITE_BUFFER)
 
+	kc.sharedKey = sharedKey
 	kc.conn = conn
+
+	conn.SetDeadline(time.Now().Add(time.Second * 5))
+
+	err = kc.auth()
+
+	if err != nil {
+		return err
+	}
+
+	kc.conn.SetDeadline(time.Time{})
+
 	kc.wch = make(chan []byte, CH_KCP_WRITE_SIZE)
 	kc.closed = false
 	return nil
+}
+
+func (kc *KCPConn) auth() error {
+
+	body := anyvalue.New()
+	body.Set("key", kc.sharedKey)
+
+	bodyData, _ := body.EncodeJson()
+
+	buf := make([]byte, POLE_PACKET_HEADER_LEN+len(bodyData))
+	copy(buf[POLE_PACKET_HEADER_LEN:], bodyData)
+	PolePacket(buf).SetCmd(CMD_AUTH)
+	PolePacket(buf).SetLen(uint16(len(buf)))
+
+	_, err := kc.conn.Write(buf)
+
+	if err != nil {
+		return err
+	}
+
+	pkt, err := ReadPacket(kc.conn)
+
+	if err != nil {
+		return err
+	}
+
+	ppkt := PolePacket(pkt)
+
+	av, err := anyvalue.NewFromJson(ppkt.Payload())
+
+	if err != nil {
+		return err
+	}
+
+	if av.Get("error").AsStr() != "" {
+		return errors.New(av.Get("error").AsStr())
+	}
+
+	return nil
+
 }
 
 func (kc *KCPConn) Close() error {

@@ -1,8 +1,8 @@
 {
-"route_server":"kcp://127.0.0.1:443",
+"route_server":"tls://127.0.0.1:443",
 "key":"123456",
-"gateway":"169.254.0.2",
-"local_networks":["192.168.1.0/24"],
+"gateway":"169.254.0.35",
+"local_networks":["192.168.10.0/24"],
 "acls":["0.0.0.0/0"],
 "route_networks":["169.254.0.0/16"]
 }

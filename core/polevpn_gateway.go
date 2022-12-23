@@ -95,7 +95,7 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 		return errors.New("route server scheme unknown")
 	}
 
-	err = pc.conn.Connect(pc.routeServer)
+	err = pc.conn.Connect(pc.routeServer, pc.sharedKey)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func (pc *PoleVpnGateway) Start(routeServer string, sharedKey string, gatewayIp 
 	pc.tunio.AttachDevice(device)
 	pc.tunio.StartProcess()
 
-	pc.conn.SetHandler(CMD_AUTH_REGISTER, pc.handlerRouteRegisterRespose)
+	pc.conn.SetHandler(CMD_REGISTER, pc.handlerRouteRegisterRespose)
 	pc.conn.SetHandler(CMD_S2C_IPDATA, pc.handlerIPDataResponse)
 	pc.conn.SetHandler(CMD_HEART_BEAT, pc.handlerHeartBeatRespose)
 	pc.conn.SetHandler(CMD_CLIENT_CLOSED, pc.handlerClientClose)
@@ -256,7 +256,7 @@ func (pc *PoleVpnGateway) SendRouteRegister() {
 
 	buf := make([]byte, POLE_PACKET_HEADER_LEN+len(bodyData))
 	copy(buf[POLE_PACKET_HEADER_LEN:], bodyData)
-	PolePacket(buf).SetCmd(CMD_AUTH_REGISTER)
+	PolePacket(buf).SetCmd(CMD_REGISTER)
 	PolePacket(buf).SetLen(uint16(len(buf)))
 
 	pc.conn.Send(buf)
@@ -285,7 +285,7 @@ func (pc *PoleVpnGateway) HeartBeat() {
 		if pc.state == POLE_CLIENT_RECONNETING || timeNow.Sub(pc.lasttimeHeartbeat) > time.Second*HEART_BEAT_INTERVAL*SOCKET_NO_HEARTBEAT_TIMES {
 			elog.Error("current connection seems like abnormal or closed,reconnect")
 			pc.conn.Close()
-			err := pc.conn.Connect(pc.routeServer)
+			err := pc.conn.Connect(pc.routeServer, pc.sharedKey)
 			if err != nil {
 				elog.Error("connect route server fail,", err)
 				continue
