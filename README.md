@@ -1,7 +1,7 @@
 # PoleVPN SD-WAN 虚拟路由系统 polevpn_gateway
 
 ## polevpn gateway 说明
-* polevpn gateway 是基于 polevpn SD-WAN 虚拟路由系统方案实现的客户端，配合polevpn router 服务端，可以解决企业各区域网络打通，加速问题
+* polevpn gateway 是基于 polevpn SD-WAN 虚拟路由系统方案实现的客户端，配合[polevpn_router](https://github.com/polevpn/polevpn_router) 服务端，可以解决企业各区域网络打通，加速问题
 * polevpn gateway 可以部署在任意版本的linux 系统上
 * polevpn gateway 基于golang 语言编写，部署方便，没有依赖
 * polevpn gateway 基于虚拟网卡技术（tun/tap）,实现网络三层数据路由转发
