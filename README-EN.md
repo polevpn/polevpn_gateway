@@ -30,3 +30,7 @@
 ## How do other machines in the local network access other remote network segments through the polevpn gateway machine (if the gateway is installed on the 192.168.10.100 machine)
 * Method 1, add a routing rule to the gateway machine on other machines, such as (ip route add 172.31.0.0/16 via 192.168.10.100), which means accessing the network segment of 172.31.0.0/16 and forwarding to 192.168.10.100
 * Method 2, add a routing rule to the gateway machine on the router where the local network is located
+
+
+## More features
+PoleVPNServer includes all the functions of PoleVPNRouter, and has complete enterprise-level VPN functions [Click here](https://polevpn.com/docs/en)
