@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pion/dtls/v3"
 	"github.com/polevpn/anyvalue"
 	"github.com/polevpn/elog"
 	"github.com/polevpn/kcp"
@@ -42,6 +43,13 @@ func NewKCPConn() *KCPConn {
 
 func (kc *KCPConn) Connect(routeServer string, sharedKey string) error {
 
+	// Prepare the configuration of the DTLS connection
+	config := &dtls.Config{
+		InsecureSkipVerify: true,
+		ServerName:         "apple.com",
+		MTU:                1400,
+	}
+
 	udpAddr, err := net.ResolveUDPAddr("udp", routeServer)
 
 	if err != nil {
@@ -52,7 +60,7 @@ func (kc *KCPConn) Connect(routeServer string, sharedKey string) error {
 
 	defer cancel()
 
-	conn, err := kcp.DialWithContext(ctx, udpAddr)
+	conn, err := kcp.DialWithContext(ctx, udpAddr, config)
 
 	if err != nil {
 		return err
